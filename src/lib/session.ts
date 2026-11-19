@@ -6,11 +6,18 @@ export interface PresenterSessionCredentials {
 
 const STORAGE_KEY = "bubt_ai_presentation_session_v1";
 
-export function buildRemoteUrl(sessionId: string, token: string): string {
+export function buildRemoteUrl(
+  sessionId: string,
+  token: string,
+  mode: "socket" | "p2p" = "socket"
+): string {
   const configuredOrigin = process.env.NEXT_PUBLIC_APP_URL?.trim()?.replace(/\/+$/, "");
   const origin =
     configuredOrigin || (typeof window !== "undefined" ? window.location.origin : "");
   const params = new URLSearchParams({ token });
+  if (mode === "p2p") {
+    params.set("mode", "p2p");
+  }
   return `${origin}/remote/${encodeURIComponent(sessionId)}?${params.toString()}`;
 }
 
@@ -19,7 +26,7 @@ export function savePresenterSession(creds: PresenterSessionCredentials): void {
   try {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(creds));
   } catch {
-    // Ignore storage quota / private mode errors
+    // Ignore storage errors
   }
 }
 

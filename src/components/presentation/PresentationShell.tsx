@@ -1,20 +1,9 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Socket } from "socket.io-client";
 import { SLIDES } from "@/data/slides";
-import {
-  ConnectionStatus,
-  createPresentationSocket,
-  LaserState,
-  SessionState,
-} from "@/lib/socket";
-import {
-  buildRemoteUrl,
-  clearPresenterSession,
-  loadPresenterSession,
-  savePresenterSession,
-} from "@/lib/session";
+import { ConnectionStatus, LaserState } from "@/lib/socket";
+import { createPresenterTransport, PresenterTransport } from "@/lib/realtime";
 import { LandingView } from "./LandingView";
 import { SlideRenderer } from "./SlideRenderer";
 import { SlideNavigation } from "./SlideNavigation";
@@ -30,10 +19,9 @@ interface PresentationShellProps {
 }
 
 export function PresentationShell({ initialView = "landing" }: PresentationShellProps) {
-  const socketRef = useRef<Socket | null>(null);
+  const transportRef = useRef<PresenterTransport | null>(null);
   const toolbarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const laserHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const currentSlideRef = useRef<number>(0);
 
   const [viewMode, setViewMode] = useState<"landing" | "presenting">(initialView);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -51,7 +39,7 @@ export function PresentationShell({ initialView = "landing" }: PresentationShell
   const [timerElapsedSec, setTimerElapsedSec] = useState(0);
 
   // Realtime Remote Session State
-  const [remoteStatus, setRemoteStatus] = useState<ConnectionStatus>("idle");
+  const [remoteStatus, setRemoteStatus] = useState<ConnectionStatus>("connecting");
   const [remoteCount, setRemoteCount] = useState(0);
   const [pairingCode, setPairingCode] = useState("");
   const [remoteUrl, setRemoteUrl] = useState("");
@@ -66,9 +54,21 @@ export function PresentationShell({ initialView = "landing" }: PresentationShell
     timestamp: 0,
   });
 
+  // Live state ref for transport callbacks
+  const stateRef = useRef({
+    currentSlide: 0,
+    isBlackout: false,
+    timerRunning: false,
+    timerElapsedSec: 0,
+  });
   useEffect(() => {
-    currentSlideRef.current = currentIndex;
-  }, [currentIndex]);
+    stateRef.current = {
+      currentSlide: currentIndex,
+      isBlackout,
+      timerRunning,
+      timerElapsedSec,
+    };
+  }, [currentIndex, isBlackout, timerRunning, timerElapsedSec]);
 
   // Timer tick
   useEffect(() => {
@@ -79,159 +79,67 @@ export function PresentationShell({ initialView = "landing" }: PresentationShell
     return () => clearInterval(id);
   }, [timerRunning]);
 
-  // Core navigation function (emits to socket when initiated locally)
-  const navigateTo = useCallback((nextIdx: number, emitToSocket = true) => {
+  // Core navigation function
+  const navigateTo = useCallback((nextIdx: number, emitToRemote = true) => {
     const clamped = Math.min(Math.max(nextIdx, 0), SLIDES.length - 1);
-    const prevIdx = currentSlideRef.current;
+    const prevIdx = stateRef.current.currentSlide;
     setViewMode("presenting");
     if (clamped === prevIdx) return;
 
     setDirection(clamped > prevIdx ? 1 : -1);
     setCurrentIndex(clamped);
 
-    if (emitToSocket && socketRef.current?.connected) {
-      socketRef.current.emit("slide:change", { index: clamped });
+    if (emitToRemote) {
+      transportRef.current?.sendSlide(clamped);
     }
   }, []);
 
-  const handleNext = useCallback(() => navigateTo(currentSlideRef.current + 1), [navigateTo]);
-  const handlePrev = useCallback(() => navigateTo(currentSlideRef.current - 1), [navigateTo]);
-
-  // Initialize / Reconnect Socket.IO session
-  const createFreshSession = useCallback((socket: Socket) => {
-    setRemoteStatus("connecting");
-    setSocketError(null);
-    socket.emit(
-      "presenter:create-session",
-      { totalSlides: SLIDES.length, currentSlide: currentSlideRef.current },
-      (res: {
-        ok: boolean;
-        sessionId: string;
-        token: string;
-        pairingCode: string;
-        state: SessionState;
-      }) => {
-        if (res?.ok) {
-          savePresenterSession({
-            sessionId: res.sessionId,
-            token: res.token,
-            pairingCode: res.pairingCode,
-          });
-          setPairingCode(res.pairingCode);
-          setRemoteUrl(buildRemoteUrl(res.sessionId, res.token));
-          setRemoteCount(res.state.remoteCount);
-          setRemoteStatus(res.state.remoteCount > 0 ? "connected" : "waiting");
-        } else {
-          setRemoteStatus("error");
-          setSocketError("Failed to create presentation session.");
-        }
-      }
-    );
-  }, []);
-
-  const initOrRestoreSession = useCallback(
-    (socket: Socket) => {
-      const saved = loadPresenterSession();
-      if (saved) {
-        setRemoteStatus("connecting");
-        socket.emit(
-          "presenter:rejoin-session",
-          { sessionId: saved.sessionId, token: saved.token },
-          (res: { ok: boolean; state?: SessionState }) => {
-            if (res?.ok && res.state && res.state.totalSlides === SLIDES.length) {
-              setPairingCode(saved.pairingCode);
-              setRemoteUrl(buildRemoteUrl(saved.sessionId, saved.token));
-              setRemoteCount(res.state.remoteCount);
-              setRemoteStatus(res.state.remoteCount > 0 ? "connected" : "waiting");
-              return;
-            }
-            clearPresenterSession();
-            createFreshSession(socket);
-          }
-        );
-      } else {
-        createFreshSession(socket);
-      }
-    },
-    [createFreshSession]
+  const handleNext = useCallback(
+    () => navigateTo(stateRef.current.currentSlide + 1),
+    [navigateTo]
+  );
+  const handlePrev = useCallback(
+    () => navigateTo(stateRef.current.currentSlide - 1),
+    [navigateTo]
   );
 
+  // Initialize unified real-time transport (Socket.IO locally or with env URL; PeerJS WebRTC automatically on Vercel!)
   useEffect(() => {
-    const socket = createPresentationSocket();
-    socketRef.current = socket;
-
-    socket.on("connect", () => {
-      setSocketError(null);
-      initOrRestoreSession(socket);
-    });
-
-    socket.on("disconnect", () => {
-      setRemoteStatus("reconnecting");
-    });
-
-    socket.on("connect_error", () => {
-      setRemoteStatus("disconnected");
-      setSocketError(
-        "Real-time remote server unreachable. Make sure the Socket.IO server is running."
-      );
-    });
-
-    socket.on("remote:connected", (payload: { remoteCount: number }) => {
-      setRemoteCount(payload.remoteCount);
-      setRemoteStatus(payload.remoteCount > 0 ? "connected" : "waiting");
-    });
-
-    socket.on("remote:disconnected", (payload: { remoteCount: number }) => {
-      setRemoteCount(payload.remoteCount);
-      setRemoteStatus(payload.remoteCount > 0 ? "connected" : "waiting");
-    });
-
-    socket.on("slide:changed", (payload: { index: number; source?: string }) => {
-      if (payload?.source === "remote" && typeof payload.index === "number") {
-        navigateTo(payload.index, false);
-      }
-    });
-
-    socket.on("blackout:changed", (payload: { isBlackout: boolean; source?: string }) => {
-      if (payload?.source === "remote") {
-        setIsBlackout(Boolean(payload.isBlackout));
-      }
-    });
-
-    socket.on(
-      "timer:updated",
-      (payload: { timerRunning: boolean; timerElapsedSec: number; source?: string }) => {
-        if (payload?.source === "remote") {
-          setTimerRunning(Boolean(payload.timerRunning));
-          if (typeof payload.timerElapsedSec === "number") {
-            setTimerElapsedSec(payload.timerElapsedSec);
-          }
+    const transport = createPresenterTransport({
+      totalSlides: SLIDES.length,
+      getState: () => stateRef.current,
+      onStatus: setRemoteStatus,
+      onSessionReady: ({ pairingCode: code, remoteUrl: url }) => {
+        setPairingCode(code);
+        setRemoteUrl(url);
+      },
+      onRemoteCount: setRemoteCount,
+      onSlideFromRemote: (idx) => navigateTo(idx, false),
+      onBlackoutFromRemote: (flag) => setIsBlackout(flag),
+      onTimerFromRemote: (running, elapsed) => {
+        setTimerRunning(running);
+        setTimerElapsedSec(elapsed);
+      },
+      onLaserFromRemote: (payload) => {
+        setLaser(payload);
+        if (laserHideTimerRef.current) clearTimeout(laserHideTimerRef.current);
+        if (payload.active) {
+          laserHideTimerRef.current = setTimeout(() => {
+            setLaser((prev) => ({ ...prev, active: false }));
+          }, 1600);
         }
-      }
-    );
-
-    socket.on("laser:update", (payload: LaserState) => {
-      setLaser(payload);
-      if (laserHideTimerRef.current) clearTimeout(laserHideTimerRef.current);
-      if (payload.active) {
-        laserHideTimerRef.current = setTimeout(() => {
-          setLaser((prev) => ({ ...prev, active: false }));
-        }, 1600);
-      }
+      },
+      onError: setSocketError,
     });
 
-    socket.on("session:expired", () => {
-      clearPresenterSession();
-      setRemoteStatus("expired");
-      setRemoteCount(0);
-    });
+    transportRef.current = transport;
 
     return () => {
       if (laserHideTimerRef.current) clearTimeout(laserHideTimerRef.current);
-      socket.disconnect();
-      socketRef.current = null;
+      transport.destroy();
+      transportRef.current = null;
     };
-  }, [initOrRestoreSession, navigateTo]);
+  }, [navigateTo]);
 
   // Fullscreen management
   const toggleFullscreen = useCallback(async () => {
@@ -255,7 +163,7 @@ export function PresentationShell({ initialView = "landing" }: PresentationShell
   const toggleBlackout = useCallback(() => {
     setIsBlackout((prev) => {
       const next = !prev;
-      socketRef.current?.emit("blackout:toggle", { isBlackout: next });
+      transportRef.current?.sendBlackout(next);
       return next;
     });
   }, []);
@@ -263,24 +171,18 @@ export function PresentationShell({ initialView = "landing" }: PresentationShell
   const toggleTimer = useCallback(() => {
     setTimerRunning((prev) => {
       const next = !prev;
-      socketRef.current?.emit("timer:sync", {
-        timerRunning: next,
-        timerElapsedSec,
-      });
+      transportRef.current?.sendTimer(next, stateRef.current.timerElapsedSec);
       return next;
     });
-  }, [timerElapsedSec]);
+  }, []);
 
   const resetTimer = useCallback(() => {
     setTimerRunning(false);
     setTimerElapsedSec(0);
-    socketRef.current?.emit("timer:sync", {
-      timerRunning: false,
-      timerElapsedSec: 0,
-    });
+    transportRef.current?.sendTimer(false, 0);
   }, []);
 
-  // Keyboard controls (active in presentation mode)
+  // Keyboard controls
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
@@ -345,7 +247,7 @@ export function PresentationShell({ initialView = "landing" }: PresentationShell
     isBlackout,
   ]);
 
-  // Automatic toolbar hiding after 3.4s of mouse inactivity
+  // Auto-hide toolbar in presenting mode
   useEffect(() => {
     if (viewMode !== "presenting") return;
     const showToolbar = () => {
@@ -369,24 +271,19 @@ export function PresentationShell({ initialView = "landing" }: PresentationShell
   }, [viewMode, overviewOpen, referencesOpen, qrModalOpen]);
 
   const handleDisconnectRemotes = () => {
-    socketRef.current?.emit("presenter:disconnect-remotes");
+    transportRef.current?.disconnectRemotes();
   };
 
   const handleRegenerateSession = () => {
-    clearPresenterSession();
-    if (socketRef.current?.connected) {
-      createFreshSession(socketRef.current);
-    } else {
-      socketRef.current?.connect();
-    }
+    transportRef.current?.regenerateSession();
   };
 
   const handleStartPresentation = () => {
     setViewMode("presenting");
     setCurrentIndex(0);
     setTimerRunning(true);
-    socketRef.current?.emit("slide:change", { index: 0 });
-    socketRef.current?.emit("timer:sync", { timerRunning: true, timerElapsedSec });
+    transportRef.current?.sendSlide(0);
+    transportRef.current?.sendTimer(true, timerElapsedSec);
   };
 
   return (
@@ -432,7 +329,6 @@ export function PresentationShell({ initialView = "landing" }: PresentationShell
         </div>
       )}
 
-      {/* Shared Modals (work on both Landing Page & Slides) */}
       <SlideOverview
         open={overviewOpen}
         currentIndex={currentIndex}

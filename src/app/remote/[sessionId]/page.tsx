@@ -12,8 +12,16 @@ function RemoteSessionInner() {
   const sessionId = typeof params?.sessionId === "string" ? params.sessionId : "";
   const token = searchParams.get("token") || undefined;
   const pairingCode = searchParams.get("code") || undefined;
+  const mode = searchParams.get("mode") || undefined;
 
-  return <MobileRemote sessionId={sessionId} token={token} pairingCode={pairingCode} />;
+  return (
+    <MobileRemote
+      sessionId={sessionId}
+      token={token}
+      pairingCode={pairingCode}
+      mode={mode}
+    />
+  );
 }
 
 export default function RemoteSessionPage() {

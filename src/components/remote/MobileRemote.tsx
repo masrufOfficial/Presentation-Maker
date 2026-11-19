@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Socket } from "socket.io-client";
 import {
   ChevronLeft,
   ChevronRight,
@@ -21,7 +20,8 @@ import {
   ArrowRight,
   AlertCircle,
 } from "lucide-react";
-import { createPresentationSocket, ConnectionStatus, SessionState } from "@/lib/socket";
+import { ConnectionStatus, SessionState } from "@/lib/socket";
+import { createRemoteTransport, RemoteTransport } from "@/lib/realtime";
 import { SLIDES, PRESENTER_INFO } from "@/data/slides";
 import { SPEAKER_NOTES } from "@/data/speaker-notes";
 import { formatTime } from "@/lib/session";
@@ -31,12 +31,13 @@ interface MobileRemoteProps {
   sessionId: string;
   token?: string;
   pairingCode?: string;
+  mode?: string;
 }
 
 type BottomTab = "notes" | "laser" | "slides";
 
-export function MobileRemote({ sessionId, token, pairingCode }: MobileRemoteProps) {
-  const socketRef = useRef<Socket | null>(null);
+export function MobileRemote({ sessionId, token, pairingCode, mode }: MobileRemoteProps) {
+  const transportRef = useRef<RemoteTransport | null>(null);
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const laserPadRef = useRef<HTMLDivElement | null>(null);
   const lastLaserEmitRef = useRef<number>(0);
@@ -74,82 +75,38 @@ export function MobileRemote({ sessionId, token, pairingCode }: MobileRemoteProp
     return () => clearInterval(id);
   }, [timerRunning]);
 
-  // Connect & authenticate with Socket.IO backend
+  // Connect via Socket.IO or WebRTC P2P automatically
   useEffect(() => {
-    const socket = createPresentationSocket();
-    socketRef.current = socket;
-
-    const joinSession = () => {
-      socket.emit(
-        "remote:join-session",
-        { sessionId, token, pairingCode },
-        (res: { ok: boolean; code?: string; error?: string; state?: SessionState }) => {
-          if (res?.ok && res.state) {
-            setStatus("connected");
-            setErrorMsg(null);
-            setCurrentSlide(res.state.currentSlide);
-            setIsBlackout(res.state.isBlackout);
-            setTimerRunning(res.state.timerRunning);
-            setTimerElapsedSec(res.state.timerElapsedSec);
-            vibrate([20, 30, 20]);
-          } else {
-            setStatus(res?.code === "EXPIRED" ? "expired" : "error");
-            setErrorMsg(res?.error || "Unable to pair with presentation session.");
-          }
-        }
-      );
-    };
-
-    socket.on("connect", joinSession);
-    socket.on("reconnect", joinSession);
-    socket.on("disconnect", () => {
-      setStatus((prev) => (prev === "expired" || prev === "disconnected" ? prev : "reconnecting"));
-    });
-    socket.on("connect_error", () => {
-      setStatus("reconnecting");
+    const transport = createRemoteTransport({
+      sessionId,
+      token,
+      pairingCode,
+      forcedMode: mode,
+      onStatus: (st) => {
+        setStatus(st);
+        if (st === "connected") vibrate([20, 30, 20]);
+      },
+      onState: (state: SessionState) => {
+        setCurrentSlide(state.currentSlide);
+        setIsBlackout(state.isBlackout);
+        setTimerRunning(state.timerRunning);
+        setTimerElapsedSec(state.timerElapsedSec);
+      },
+      onSlideChanged: (idx) => setCurrentSlide(idx),
+      onBlackoutChanged: (flag) => setIsBlackout(flag),
+      onTimerUpdated: (running, elapsed) => {
+        setTimerRunning(running);
+        setTimerElapsedSec(elapsed);
+      },
+      onError: setErrorMsg,
     });
 
-    socket.on("session:state", (state: SessionState) => {
-      setCurrentSlide(state.currentSlide);
-      setIsBlackout(state.isBlackout);
-      setTimerRunning(state.timerRunning);
-      setTimerElapsedSec(state.timerElapsedSec);
-    });
-
-    socket.on("slide:changed", (payload: { index: number }) => {
-      if (typeof payload?.index === "number") {
-        setCurrentSlide(payload.index);
-      }
-    });
-
-    socket.on("blackout:changed", (payload: { isBlackout: boolean }) => {
-      setIsBlackout(Boolean(payload?.isBlackout));
-    });
-
-    socket.on("timer:updated", (payload: { timerRunning: boolean; timerElapsedSec: number }) => {
-      setTimerRunning(Boolean(payload?.timerRunning));
-      if (typeof payload?.timerElapsedSec === "number") {
-        setTimerElapsedSec(payload.timerElapsedSec);
-      }
-    });
-
-    socket.on("remote:kicked", (payload: { reason?: string }) => {
-      setStatus("disconnected");
-      setErrorMsg(payload?.reason || "Disconnected by presenter.");
-      socket.disconnect();
-    });
-
-    socket.on("session:expired", () => {
-      setStatus("expired");
-      setErrorMsg("Presentation session expired. Scan a new QR code on the laptop.");
-    });
-
+    transportRef.current = transport;
     return () => {
-      socket.emit("remote:leave");
-      socket.disconnect();
-      socketRef.current = null;
+      transport.destroy();
+      transportRef.current = null;
     };
-  }, [sessionId, token, pairingCode, vibrate]);
+  }, [sessionId, token, pairingCode, mode, vibrate]);
 
   const goToSlide = useCallback(
     (index: number) => {
@@ -157,7 +114,7 @@ export function MobileRemote({ sessionId, token, pairingCode }: MobileRemoteProp
       if (clamped === currentSlide) return;
       setCurrentSlide(clamped);
       vibrate(18);
-      socketRef.current?.emit("slide:change", { index: clamped });
+      transportRef.current?.sendSlide(clamped);
     },
     [currentSlide, vibrate]
   );
@@ -169,33 +126,26 @@ export function MobileRemote({ sessionId, token, pairingCode }: MobileRemoteProp
     const next = !isBlackout;
     setIsBlackout(next);
     vibrate(25);
-    socketRef.current?.emit("blackout:toggle", { isBlackout: next });
+    transportRef.current?.sendBlackout(next);
   };
 
   const handleToggleTimer = () => {
     const next = !timerRunning;
     setTimerRunning(next);
     vibrate(15);
-    socketRef.current?.emit("timer:sync", {
-      timerRunning: next,
-      timerElapsedSec,
-    });
+    transportRef.current?.sendTimer(next, timerElapsedSec);
   };
 
   const handleResetTimer = () => {
     setTimerRunning(false);
     setTimerElapsedSec(0);
     vibrate(15);
-    socketRef.current?.emit("timer:sync", {
-      timerRunning: false,
-      timerElapsedSec: 0,
-    });
+    transportRef.current?.sendTimer(false, 0);
   };
 
   const handleDisconnect = () => {
     vibrate([30, 20, 30]);
-    socketRef.current?.emit("remote:leave");
-    socketRef.current?.disconnect();
+    transportRef.current?.leave();
     setStatus("disconnected");
     setErrorMsg("You disconnected from the presentation.");
   };
@@ -230,13 +180,13 @@ export function MobileRemote({ sessionId, token, pairingCode }: MobileRemoteProp
     const now = performance.now();
     if (now - lastLaserEmitRef.current >= 22) {
       lastLaserEmitRef.current = now;
-      socketRef.current?.emit("laser:move", { x, y, color: laserColor });
+      transportRef.current?.sendLaserMove(x, y, laserColor);
     }
   };
 
   const endLaser = () => {
     setLaserPos((p) => ({ ...p, active: false }));
-    socketRef.current?.emit("laser:end");
+    transportRef.current?.sendLaserEnd();
   };
 
   const slide = SLIDES[currentSlide] || SLIDES[0];

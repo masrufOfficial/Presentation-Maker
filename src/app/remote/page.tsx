@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Smartphone, ArrowRight, Loader2, AlertCircle } from "lucide-react";
 import { BUBTLogo } from "@/components/branding/BUBTLogo";
 import { getSocketServerUrl } from "@/lib/socket";
+import { detectTransportMode, p2pPeerIdFromCode } from "@/lib/realtime";
 import { PRESENTER_INFO } from "@/data/slides";
 
 export default function ManualPairingPage() {
@@ -23,6 +24,14 @@ export default function ManualPairingPage() {
 
     setLoading(true);
     setError(null);
+
+    if (detectTransportMode() === "p2p") {
+      const peerId = p2pPeerIdFromCode(cleaned);
+      router.push(
+        `/remote/${encodeURIComponent(peerId)}?code=${encodeURIComponent(cleaned)}&mode=p2p`
+      );
+      return;
+    }
 
     try {
       const serverUrl = getSocketServerUrl();
