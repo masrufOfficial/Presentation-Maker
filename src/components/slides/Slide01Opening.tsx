@@ -3,6 +3,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { BUBTLogo } from "@/components/branding/BUBTLogo";
+import { AnimatedPhotoCard } from "@/components/animations/AnimatedPhotoCard";
 import { PRESENTER_INFO } from "@/data/slides";
 import { Mail, GraduationCap, Hash } from "lucide-react";
 
@@ -84,27 +85,16 @@ export function Slide01Opening() {
           </motion.div>
         </div>
 
-        {/* Right: 3D Neural Intelligence Sphere Image */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.92 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.6, delay: 0.15 }}
-          className="lg:col-span-5 flex items-center justify-center"
-        >
-          <motion.div
-            animate={{ y: [0, -8, 0] }}
-            transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
-            className="w-full max-w-sm aspect-square rounded-3xl overflow-hidden bg-white p-2 flex items-center justify-center"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/images/ai-3d-brain.jpg"
-              alt="3D AI Neural Intelligence Sphere"
-              className="w-full h-full object-contain rounded-2xl"
-              draggable={false}
-            />
-          </motion.div>
-        </motion.div>
+        {/* Right: Animated Real AI Research Photo */}
+        <div className="lg:col-span-5 flex items-center justify-center">
+          <AnimatedPhotoCard
+            src="/images/real-ai-hero.jpg"
+            alt="AI researcher working on data models in a modern lab"
+            caption="Human-Centered AI Research"
+            aspectClass="aspect-[4/3]"
+            className="w-full max-w-md"
+          />
+        </div>
       </div>
     </div>
   );

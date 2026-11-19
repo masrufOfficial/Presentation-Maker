@@ -3,6 +3,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { Lock, UserCheck, Database } from "lucide-react";
+import { AnimatedPhotoCard } from "@/components/animations/AnimatedPhotoCard";
 
 const PRIVACY_POINTS = [
   {
@@ -26,33 +27,24 @@ export function Slide05Privacy() {
   return (
     <div className="w-full h-full flex flex-col justify-center pt-20 pb-24 px-6 sm:px-10 md:px-14 bg-white overflow-y-auto">
       <div className="max-w-6xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-        {/* Left: 3D Security Shield Image */}
-        <div className="lg:col-span-5">
-          <div className="rounded-3xl bg-white border border-slate-200 shadow-keynote-md p-6 flex flex-col items-center justify-center text-center space-y-4">
-            <motion.div
-              animate={{ y: [0, -6, 0] }}
-              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-              className="w-56 h-56 sm:w-64 sm:h-64 rounded-2xl overflow-hidden flex items-center justify-center"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/images/ai-3d-shield.jpg"
-                alt="3D Glass Security Shield Protecting Digital Identity"
-                className="w-full h-full object-contain"
-                draggable={false}
-              />
-            </motion.div>
+        {/* Left: Animated Real Digital Privacy Photo */}
+        <div className="lg:col-span-5 space-y-4">
+          <AnimatedPhotoCard
+            src="/images/real-privacy-security.jpg"
+            alt="Person securely using a smartphone and laptop in a bright office"
+            caption="Protecting Personal Identity & Consent"
+            aspectClass="aspect-[4/3]"
+          />
 
-            <div className="flex flex-wrap justify-center gap-2">
-              {["Explicit Consent", "Differential Privacy", "Federated Learning"].map((tag) => (
-                <span
-                  key={tag}
-                  className="px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-[11px] font-display font-semibold text-brand-primary"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
+          <div className="flex flex-wrap justify-center gap-2">
+            {["Explicit Consent", "Differential Privacy", "Federated Learning"].map((tag) => (
+              <span
+                key={tag}
+                className="px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-[11px] font-display font-semibold text-brand-primary"
+              >
+                {tag}
+              </span>
+            ))}
           </div>
         </div>
 

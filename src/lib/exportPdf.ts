@@ -63,7 +63,7 @@ const PDF_SLIDES: PdfSlideContent[] = [
       `Email: ${PRESENTER_INFO.email}`,
     ],
     highlight: "MSc in CSE Academic Keynote Presentation",
-    imageUrl: "/images/ai-3d-brain.jpg",
+    imageUrl: "/images/real-ai-hero.jpg",
   },
   {
     number: "02",
@@ -78,7 +78,7 @@ const PDF_SLIDES: PdfSlideContent[] = [
       "5. AI Agents (Today & Next): Plan steps, use tools, and complete tasks autonomously.",
     ],
     highlight: "As AI grows faster and more independent, ethical design becomes essential.",
-    imageUrl: "/images/ai-3d-brain.jpg",
+    imageUrl: "/images/real-ai-hero.jpg",
   },
   {
     number: "03",
@@ -105,7 +105,7 @@ const PDF_SLIDES: PdfSlideContent[] = [
       "Fix 2 — Fairness Audits: Test accuracy across gender, age, and region before deployment.",
     ],
     highlight: "Goal: Fair, inclusive automated decisions that everyone can trust.",
-    imageUrl: "/images/ai-3d-ethics-balance.jpg",
+    imageUrl: "/images/real-fairness-people.jpg",
   },
   {
     number: "05",
@@ -119,7 +119,7 @@ const PDF_SLIDES: PdfSlideContent[] = [
       "Federated Learning: Trains AI on devices without centralizing raw private data.",
     ],
     highlight: "Smart AI should learn useful patterns without exposing personal identity.",
-    imageUrl: "/images/ai-3d-shield.jpg",
+    imageUrl: "/images/real-privacy-security.jpg",
   },
   {
     number: "06",
@@ -160,7 +160,7 @@ const PDF_SLIDES: PdfSlideContent[] = [
       "5. Accountability — Maintain clear human ownership and audit trails.",
       "6. Human-First Design — Build AI to empower people and human dignity.",
     ],
-    imageUrl: "/images/ai-3d-ethics-balance.jpg",
+    imageUrl: "/images/real-fairness-people.jpg",
   },
   {
     number: "09",
@@ -174,7 +174,7 @@ const PDF_SLIDES: PdfSlideContent[] = [
       "UNESCO (2021), NIST AI RMF (2023) & OECD (2024): Global safety & ethics standards.",
     ],
     highlight: "Because AI crosses borders instantly, global cooperation is essential.",
-    imageUrl: "/images/ai-3d-future-globe.jpg",
+    imageUrl: "/images/real-global-future.jpg",
   },
   {
     number: "10",
@@ -189,7 +189,7 @@ const PDF_SLIDES: PdfSlideContent[] = [
       `Questions & Discussion — ${PRESENTER_INFO.fullName} (${PRESENTER_INFO.email})`,
     ],
     highlight: "Thank You! Let's Build an Intelligent Future, Responsibly.",
-    imageUrl: "/images/ai-3d-future-globe.jpg",
+    imageUrl: "/images/real-global-future.jpg",
   },
 ];
 

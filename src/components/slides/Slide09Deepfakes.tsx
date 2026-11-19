@@ -3,6 +3,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { Bot, Heart, Sparkles, Globe, Scale, ShieldCheck, Landmark } from "lucide-react";
+import { AnimatedPhotoCard } from "@/components/animations/AnimatedPhotoCard";
 
 const TECH_DIRECTIONS = [
   {
@@ -46,20 +47,14 @@ export function Slide09Deepfakes() {
             </p>
           </div>
 
-          {/* 3D Futuristic Crystal Globe */}
-          <motion.div
-            animate={{ y: [0, -5, 0] }}
-            transition={{ duration: 4.2, repeat: Infinity, ease: "easeInOut" }}
-            className="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl overflow-hidden bg-white border border-slate-100 shadow-keynote-sm shrink-0 p-1"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/images/ai-3d-future-globe.jpg"
-              alt="3D Translucent Global AI Governance Globe"
-              className="w-full h-full object-contain rounded-xl"
-              draggable={false}
-            />
-          </motion.div>
+          {/* Animated Real Global Summit Photo */}
+          <AnimatedPhotoCard
+            src="/images/real-global-future.jpg"
+            alt="International delegates collaborating at a modern global technology summit"
+            caption="Global AI Cooperation"
+            aspectClass="aspect-[16/10]"
+            className="w-48 sm:w-60 shrink-0 rounded-2xl"
+          />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

@@ -3,6 +3,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { AlertTriangle, CheckCircle2, ArrowRight } from "lucide-react";
+import { AnimatedPhotoCard } from "@/components/animations/AnimatedPhotoCard";
 
 export function Slide04Bias() {
   return (
@@ -21,21 +22,14 @@ export function Slide04Bias() {
             </p>
           </div>
 
-          {/* 3D Ethics Balance Scale Image */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.92 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5 }}
-            className="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl overflow-hidden bg-white border border-slate-100 shadow-keynote-sm shrink-0 p-1"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/images/ai-3d-ethics-balance.jpg"
-              alt="3D Balanced Fairness Scale"
-              className="w-full h-full object-contain rounded-xl"
-              draggable={false}
-            />
-          </motion.div>
+          {/* Animated Real Diverse Team Collaboration Photo */}
+          <AnimatedPhotoCard
+            src="/images/real-fairness-people.jpg"
+            alt="Diverse group of university engineers collaborating around a laptop"
+            caption="Inclusive Teams Build Fair AI"
+            aspectClass="aspect-[16/10]"
+            className="w-48 sm:w-60 shrink-0 rounded-2xl"
+          />
         </div>
 
         {/* Clean Side-by-Side Comparison */}
